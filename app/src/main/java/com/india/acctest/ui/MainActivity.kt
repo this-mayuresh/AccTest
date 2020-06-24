@@ -1,6 +1,8 @@
 package com.india.acctest.ui
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -28,7 +30,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var db:AppDatabase
+    private lateinit var db: AppDatabase
     private lateinit var networkCall: NetworkCall
     private lateinit var animalRepo: AnimalRepo
     private lateinit var animalViewModelFactory: AnimalViewModelFactory
@@ -43,11 +45,11 @@ class MainActivity : AppCompatActivity() {
 
         db = AppDatabase(this)
         networkCall = NetworkCall()
-        animalRepo = AnimalRepo(networkCall,db)
+        animalRepo = AnimalRepo(networkCall, db)
         animalViewModelFactory = AnimalViewModelFactory(animalRepo)
 
-        animalAdapter = AnimalAdapter(this,list)
-        animalRecyclerView.adapter= animalAdapter
+        animalAdapter = AnimalAdapter(this, list)
+        animalRecyclerView.adapter = animalAdapter
         animalRecyclerView.layoutManager = LinearLayoutManager(this)
 
         animalViewModel = ViewModelProviders.of(this, animalViewModelFactory)
@@ -55,35 +57,59 @@ class MainActivity : AppCompatActivity() {
 
         title = "About Canada"
 
+        swipeRefresh.setOnRefreshListener {
+            if (isActive(this)) {
 
-        Coroutines.io{
-
-            animalViewModel.callAnimalList()
+                callAPI()
+            } else {
+                swipeRefresh.isRefreshing = false
+            }
         }
 
+        callAPI()
+
+
         animalViewModel.animalList.observe(this, Observer {
+            swipeRefresh.isRefreshing = false
 
-            Coroutines.io {
-                animalViewModel.clearTable()
-            }
-
+            list.clear()
             list.addAll(it)
             animalAdapter.notifyDataSetChanged()
         })
     }
 
+    private fun callAPI() {
+        Coroutines.io {
+
+            if (isActive(this)) {
+
+                animalViewModel.clearTable()
+            }
+
+            animalViewModel.callAnimalList()
+        }
+    }
+
+
+    fun isActive(activity: AppCompatActivity): Boolean {
+        val connectivityManager =
+            activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val networkInfo = connectivityManager.activeNetworkInfo
+        return networkInfo != null && networkInfo.isConnected
+    }
 
 }
 
 
-class AnimalAdapter( private val context:Context,private var animals:List<Animal>):RecyclerView.Adapter<AnimalAdapter.ItemViewHolder>(){
+class AnimalAdapter(private val context: Context, private var animals: List<Animal>) :
+    RecyclerView.Adapter<AnimalAdapter.ItemViewHolder>() {
 
     private val inflater: LayoutInflater = LayoutInflater.from(context)
 
-    class ItemViewHolder(v:View): RecyclerView.ViewHolder(v){
-        val title:TextView = v.findViewById(R.id.titleTextView)
-        val desc:TextView = v.findViewById(R.id.descTextView)
-        val img:ImageView = v.findViewById(R.id.imageView)
+    class ItemViewHolder(v: View) : RecyclerView.ViewHolder(v) {
+        val title: TextView = v.findViewById(R.id.titleTextView)
+        val desc: TextView = v.findViewById(R.id.descTextView)
+        val img: ImageView = v.findViewById(R.id.imageView)
 
     }
 
@@ -91,7 +117,7 @@ class AnimalAdapter( private val context:Context,private var animals:List<Animal
         val itemView =
             inflater.inflate(R.layout.cell_animal, parent, false)
 
-      return  ItemViewHolder(itemView)
+        return ItemViewHolder(itemView)
     }
 
     override fun getItemCount(): Int {
@@ -111,18 +137,18 @@ class AnimalAdapter( private val context:Context,private var animals:List<Animal
 
         animal.imageHref?.let {
 
-             val requestOptions =
-                 RequestOptions().placeholder(R.drawable.ic_launcher_background)
-                     .error(R.drawable.ic_launcher_background)
+            val requestOptions =
+                RequestOptions().placeholder(R.mipmap.ic_launcher)
+                    .error(R.mipmap.ic_launcher)
 
-             Glide.with(context)
-                 .setDefaultRequestOptions(requestOptions)
-                 .load(it)
-                 .into(holder.img)
+            Glide.with(context)
+                .setDefaultRequestOptions(requestOptions)
+                .load(it.replace("http:", "https:"))
+                .into(holder.img)
         }
+
     }
 }
-
 
 
 object Coroutines {
